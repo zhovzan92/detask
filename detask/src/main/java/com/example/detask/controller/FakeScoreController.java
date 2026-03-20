@@ -1,4 +1,4 @@
-package com.example.scores;
+package com.example.detask.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,109 +19,79 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/team-scores")
-// Uncomment and adjust if your frontend runs on a different origin (e.g., Vite/React on :5173)
-// @CrossOrigin(origins = {"http://localhost:3000","http://localhost:5173"})
 public class FakeScoreController {
 
     private final JdbcTemplate jdbc;
 
-    // Scoring rules
-    private static final int SURVEY_POINTS = 1;  // +1 per survey
-    private static final int ATTEND_POINTS = 5;  // +5 per attendance
-
-    // Change schema/table if yours differs
+    private static final int SURVEY_POINTS = 1;
+    private static final int ATTEND_POINTS = 5;
     private static final String TABLE = "dbo.Points";
 
     public FakeScoreController(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-
-        // OPTIONAL: Ensure table exists (SQL Server). Commented out by default.
-        // jdbc.execute("""
-        //     IF OBJECT_ID('""" + TABLE + """', 'U') IS NULL
-        //     BEGIN
-        //         CREATE TABLE """ + TABLE + """ (
-        //             ID BIGINT PRIMARY KEY,
-        //             Points BIGINT NOT NULL DEFAULT 0
-        //         )
-        //     END
-        // """);
     }
 
-    /** LIST ALL: [{ teamId, points }, ...] */
+    /** LIST ALL */
     @GetMapping
     public ResponseEntity<?> getAllTeamScores() {
         try {
-            List<Map<String, Object>> rows = jdbc.query(
+            var rows = jdbc.query(
                     "SELECT ID, Points FROM " + TABLE + " ORDER BY ID ASC",
-                    (rs, i) -> Map.of(
-                            "teamId", rs.getLong("ID"),
-                            "points", rs.getLong("Points"))
+                    (rs, i) -> Map.of("teamId", rs.getInt("ID"), "points", rs.getInt("Points"))
             );
             return ResponseEntity.ok(rows);
         } catch (Exception e) {
-            return serverError(e);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
-    /** READ ONE: { teamId, points } */
-    @GetMapping("/{teamId}")
-    public ResponseEntity<?> getTeamPoints(@PathVariable long teamId) {
-        try {
-            Long points = jdbc.query(
-                    "SELECT COALESCE(Points, 0) AS Points FROM " + TABLE + " WHERE ID = ?",
-                    rs -> rs.next() ? rs.getLong("Points") : 0L,
-                    teamId
-            );
-            return ResponseEntity.ok(Map.of("teamId", teamId, "points", points));
-        } catch (Exception e) {
-            return serverError(e);
-        }
-    }
-
-    /** TOTAL ACROSS ALL TEAMS: { totalPoints } */
+    /** TOTAL ACROSS ALL TEAMS */
     @GetMapping("/total")
     public ResponseEntity<?> getTotalPoints() {
         try {
             Long total = jdbc.queryForObject(
-                    "SELECT COALESCE(SUM(Points), 0) FROM " + TABLE,
+                    "SELECT COALESCE(SUM(Points),0) FROM " + TABLE,
                     Long.class
             );
-            return ResponseEntity.ok(Map.of("totalPoints", total != null ? total : 0L));
+            return ResponseEntity.ok(Map.of("totalPoints", total));
         } catch (Exception e) {
-            return serverError(e);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
-    /** +1 for survey: body { "teamId": number } (teamId defaults to 1) */
+    /** +1 for survey */
     @PostMapping("/survey")
-    public ResponseEntity<?> addSurveyPoints(@RequestBody Map<String, Object> body) {
-        try {
-            long teamId = getTeamIdOrDefault(body, 1L);
-            addPoints(teamId, SURVEY_POINTS);
-            return ResponseEntity.ok(Map.of("teamId", teamId, "added", SURVEY_POINTS));
-        } catch (Exception e) {
-            return serverError(e);
-        }
+    public ResponseEntity<?> addSurveyPoints(@RequestBody Map<String, Integer> body) {
+        int teamId = body.getOrDefault("teamId", 1);
+        addPoints(teamId, SURVEY_POINTS);
+        return ResponseEntity.ok(Map.of("teamId", teamId, "added", SURVEY_POINTS));
     }
 
-    /** +5 for attend: body { "teamId": number } (teamId defaults to 1) */
+    /** +5 for attend */
     @PostMapping("/attend")
-    public ResponseEntity<?> addAttendPoints(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> addAttendPoints(@RequestBody Map<String, Integer> body) {
+        int teamId = body.getOrDefault("teamId", 1);
+        addPoints(teamId, ATTEND_POINTS);
+        return ResponseEntity.ok(Map.of("teamId", teamId, "added", ATTEND_POINTS));
+    }
+
+    /** READ ONE (must be LAST) */
+    @GetMapping("/{teamId}")
+    public ResponseEntity<?> getTeamPoints(@PathVariable int teamId) {
         try {
-            long teamId = getTeamIdOrDefault(body, 1L);
-            addPoints(teamId, ATTEND_POINTS);
-            return ResponseEntity.ok(Map.of("teamId", teamId, "added", ATTEND_POINTS));
+            Integer points = jdbc.query(
+                    "SELECT COALESCE(Points, 0) AS Points FROM " + TABLE + " WHERE ID = ?",
+                    rs -> rs.next() ? rs.getInt("Points") : 0,
+                    teamId
+            );
+            return ResponseEntity.ok(Map.of("teamId", teamId, "points", points));
         } catch (Exception e) {
-            return serverError(e);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
-    // ---------------------------
-    // Helpers
-    // ---------------------------
-
-    /** UPSERT add: try UPDATE; if 0 rows updated, INSERT a new row */
-    private void addPoints(long teamId, int points) {
+    /** Helper UPSERT */
+    private void addPoints(int teamId, int points) {
         int updated = jdbc.update(
                 "UPDATE " + TABLE + " SET Points = Points + ? WHERE ID = ?",
                 points, teamId
@@ -132,25 +102,5 @@ public class FakeScoreController {
                     teamId, points
             );
         }
-    }
-
-    /** Extract teamId from body safely (supports number types) */
-    private long getTeamIdOrDefault(Map<String, Object> body, long def) {
-        if (body == null) return def;
-        Object raw = body.get("teamId");
-        if (raw == null) return def;
-        if (raw instanceof Number n) return n.longValue();
-        try {
-            return Long.parseLong(String.valueOf(raw));
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
-    private ResponseEntity<Map<String, String>> serverError(Exception e) {
-        return ResponseEntity.status(500).body(Map.of(
-                "error", e.getClass().getSimpleName(),
-                "message", e.getMessage() != null ? e.getMessage() : "Internal Server Error"
-        ));
     }
 }
