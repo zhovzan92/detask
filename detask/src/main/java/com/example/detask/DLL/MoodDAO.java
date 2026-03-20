@@ -1,12 +1,11 @@
 package com.example.detask.DLL;
 
 
-import com.example.detask.BE.MoodCheckin;
+import com.example.detask.BE.MoodCheckinTeam;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Repository
@@ -19,8 +18,8 @@ public class MoodDAO {
     }
 
 
-    private final RowMapper<MoodCheckin> rowMapper = (rs, rowNum) ->
-            new MoodCheckin(
+    private final RowMapper<MoodCheckinTeam> rowMapper = (rs, rowNum) ->
+            new MoodCheckinTeam(
                     rs.getInt("userId"),
                     rs.getInt("teamId"),
                     rs.getInt("mood"),
@@ -28,7 +27,7 @@ public class MoodDAO {
             );
 
     /** Insert a single mood check-in. */
-    public void save(MoodCheckin m) {
+    public void save(MoodCheckinTeam m) {
         jdbc.update(
                 // Qualify schema if needed: dbo.MoodCheckins
                 "INSERT INTO MoodCheckins (userId, teamId, mood, [timestamp]) VALUES (?, ?, ?, ?)",
@@ -40,7 +39,7 @@ public class MoodDAO {
      * Return all check-ins for a team since (inclusive) a given epoch ms.
      * Use this for "today" by passing start-of-day in ms.
      */
-    public List<MoodCheckin> findSinceForTeam(int teamId, long sinceInclusiveMs) {
+    public List<MoodCheckinTeam> findSinceForTeam(int teamId, long sinceInclusiveMs) {
         String sql =
                 "SELECT userId, teamId, mood, [timestamp] " +
                         "FROM MoodCheckins " +
@@ -55,7 +54,7 @@ public class MoodDAO {
      * — return "upcoming only" — you can create an overload that chooses between
      * CURRENT_TIMESTAMP and a since-window. Example:
      */
-    public List<MoodCheckin> findByTeamDefaultWindow(int teamId, Long sinceInclusiveMs) {
+    public List<MoodCheckinTeam> findByTeamDefaultWindow(int teamId, Long sinceInclusiveMs) {
         // If sinceInclusiveMs is null -> default to "today"
         if (sinceInclusiveMs == null) {
             long startOfToday = java.time.LocalDate.now()

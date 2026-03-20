@@ -20,12 +20,12 @@ public class EventManager {
         this.repo = repo;
     }
 
-    // NEW — all events across all teams
+    //  all events across all teams
     public List<Event> getAllEvents() {
         return repo.getAllEvents();
     }
 
-    // NEW — single event by id
+    // single event by id
     public Event getById(int id) {
         return repo.getById(id);
     }

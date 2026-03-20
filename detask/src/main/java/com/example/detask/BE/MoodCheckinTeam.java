@@ -1,15 +1,15 @@
 package com.example.detask.BE;
 
-public class MoodCheckin {
+public class MoodCheckinTeam {
     private int id;
     private int userId;
     private int teamId;
     private int mood; // 1–5
     private long timestamp;
 
-    public MoodCheckin() {}
+    public MoodCheckinTeam() {}
 
-    public MoodCheckin(int userId, int teamId, int mood, long timestamp) {
+    public MoodCheckinTeam(int userId, int teamId, int mood, long timestamp) {
         this.userId = userId;
         this.teamId = teamId;
         this.mood = mood;
